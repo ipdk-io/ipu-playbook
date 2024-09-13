@@ -1,14 +1,36 @@
 #!/usr/bin/python
 #
 # Copyright 2022-2024 Intel Corporation
-# SPDX-License-Identifier: Apache 2.0
+# SPDX-License-Identifier: Apache-2.0
 #
-# Python tool to setup Linux Networking with OVS Offload on Intel® Infrastructure Processing Unit (Intel® IPU)
+# Python tool to set up Linux Networking V2 with OVS Offload on the
+# Intel® Infrastructure Processing Unit (Intel® IPU).
 
-import sys,argparse
+import argparse
+import sys
+
 from common.utils import *
 
-def build_p4rt_config(vf_list=[], acc_pr_list=[],vm_ip_list=[], host_idpf_intf='', path=''):
+# Define command strings.
+# Note that test_config is imported from common.utils.
+host_path = test_config['test_params']['host_path']
+imc_path = test_config['test_params']['imc_path']
+acc_path = test_config['test_params']['acc_path']
+idpf_interface = test_config['test_params']['idpf_interface']
+vf_interfaces = test_config['test_params']['vf_interfaces']
+acc_pr_interfaces = test_config['test_params']['acc_pr_interfaces']
+ip_list = test_config['test_params']['ip_list']
+imc_ip = test_config['imc']['ssh']['ip']
+acc_ip = test_config['acc']['ssh']['ip']
+acc_p4_path = f'{acc_path}/fxp-net_linux-networking'
+lp_interfaces = test_config['host']['lp_interfaces']
+lp_interface_ip = test_config['host']['lp_interface_ip']
+host_password = test_config['host']['ssh']['password']
+imc_login = f'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{imc_ip}'
+acc_login = f'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{acc_ip}'
+
+def build_p4rt_config(vf_list=[], acc_pr_list=[], vm_ip_list=[],
+                      host_idpf_intf='', path=''):
 
     print("---------- Generating Configs to run infrap4d, p4rt and OVS ----------")
 
@@ -21,7 +43,7 @@ def build_p4rt_config(vf_list=[], acc_pr_list=[],vm_ip_list=[], host_idpf_intf='
     host_command_list.append(cmd)
 
     file = f'{path}/1_host_idpf.sh'
-    host_idpf = 'cat <<EOF > ./'+file+'''
+    host_idpf = 'cat <<EOF > ./' + file + '''
 #!/bin/sh
 #Load the driver
 echo "Load the IDPF Driver on the Host"
@@ -31,9 +53,9 @@ sleep 4
 echo ""
 echo "Check the Interfaces are up"
 ip -br a
-#Setup number of sriov devices on the IDPF interface
-echo "Create SRIOV VFs on IDPF interface '''+host_idpf_intf+'''"
-echo 8 > /sys/class/net/'''+host_idpf_intf+'''/device/sriov_numvfs
+#Set up number of sriov devices on the IDPF interface
+echo "Create SRIOV VFs on IDPF interface ''' + host_idpf_intf + '''"
+echo 8 > /sys/class/net/''' + host_idpf_intf + '''/device/sriov_numvfs
 
 echo ""
 echo "Wait for the interfaces to come up"
@@ -119,7 +141,7 @@ ovs-vsctl add-port br{vm_id} vxlan{vm_id} -- set interface vxlan{vm_id} type=vxl
 """
             vf_to_vm += f'''
 echo ""
-echo "Setup VM{vm_id} using ip netns (Network Namespace) to simulate a Virtual Machine"
+echo "Set up VM{vm_id} using ip netns (Network Namespace) to simulate a Virtual Machine"
 echo "Add HOST VF {vf_list[i]} to the VM{vm_id} namespace"
 ip netns del VM{vm_id}
 ip netns add VM{vm_id}
@@ -150,7 +172,7 @@ p4rt-ctl add-entry br0  linux_networking_control.tx_lag_table "user_meta.cmeta.l
     acc_path = test_config['test_params']['acc_path']
     acc_p4_path = f'{acc_path}/fxp-net_linux-networking-v2'
     file = f'{path}/es2k_skip_p4.conf'
-    p4_config = 'cat <<EOF > ./'+file+'''
+    p4_config = 'cat <<EOF > ./' + file + '''
 {
     "chip_list": [
         {
@@ -171,19 +193,19 @@ p4rt-ctl add-entry br0  linux_networking_control.tx_lag_table "user_meta.cmeta.l
             "p4_programs": [
                 {
                     "program-name": "fxp-net_linux-networking-v2",
-                    "tdi-config": "'''+acc_p4_path+'''/tdi.json",
+                    "tdi-config": "''' + acc_p4_path + '''/tdi.json",
                     "p4_pipelines": [
                         {
                             "p4_pipeline_name": "main",
-                            "context": "'''+acc_p4_path+'''/context.json",
-                            "config": "'''+acc_p4_path+'''/ipu.bin",
+                            "context": "''' + acc_p4_path + '''/context.json",
+                            "config": "''' + acc_p4_path + '''/ipu.bin",
                             "pipe_scope": [
                                 0,
                                 1,
                                 2,
                                 3
                             ],
-                            "path": "'''+acc_p4_path+'''/"
+                            "path": "''' + acc_p4_path + '''/"
                         }
                     ]
                 }
@@ -199,11 +221,11 @@ EOF
     command_list.append(host_idpf)
 
     file = f'{path}/2_acc_infrap4d.sh'
-    acc_infrap4d = 'cat <<EOF > ./'+file+'''
+    acc_infrap4d = 'cat <<EOF > ./' + file + '''
 #!/bin/sh
 #ACC Environment for Infrap4d:
 echo ""
-echo "Setup the environment in ACC to run Infrap4d"
+echo "Set up the environment in ACC to run Infrap4d"
 export SDE_INSTALL=/opt/p4/p4sde
 export P4CP_INSTALL=/opt/p4/p4-cp-nws
 export DEPEND_INSTALL=\$P4CP_INSTALL
@@ -215,7 +237,7 @@ unset https_proxy
 bash \$P4CP_INSTALL/sbin/setup_env.sh \$P4CP_INSTALL \$SDE_INSTALL \$DEPEND_INSTALL
 sudo \$P4CP_INSTALL/sbin/copy_config_files.sh \$P4CP_INSTALL \$SDE_INSTALL
 
-export OUTPUT_DIR='''+acc_p4_path+'''
+export OUTPUT_DIR=''' + acc_p4_path + '''
 
 echo ""
 echo "Load the vfio-pci driver to bind the vfio-pci 00:01.6"
@@ -248,63 +270,63 @@ EOF
     command_list.append(acc_infrap4d)
 
     file = f'{path}/3_acc_p4rt.sh'
-    acc_p4rt = 'cat <<EOF > ./'+file+'''
+    acc_p4rt = 'cat <<EOF > ./' + file + '''
 #!/bin/sh
 
-echo "Setup P4 Runtime Pipeline"
-echo "P4 Artifacts are in Folder : OUTPUT_DIR='''+acc_p4_path+'''"
+echo "Set up P4 Runtime Pipeline"
+echo "P4 Artifacts are in Folder : OUTPUT_DIR=''' + acc_p4_path + '''"
 export SDE_INSTALL=/opt/p4/p4sde
 export P4CP_INSTALL=/opt/p4/p4-cp-nws
 export DEPEND_INSTALL=\$P4CP_INSTALL
-export OUTPUT_DIR='''+acc_p4_path+'''
+export OUTPUT_DIR=''' + acc_p4_path + '''
 export PATH=/root/.local/bin:/root/bin:/usr/share/Modules/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/p4/p4-cp-nws/bin:/opt/p4/p4-cp-nws/sbin
 
 tdi_pipeline_builder --p4c_conf_file=/usr/share/stratum/es2k/es2k_skip_p4.conf --bf_pipeline_config_binary_file=\$OUTPUT_DIR/fxp-net_linux-networking-v2.pb.bin
 
 sleep 2
 echo ""
-echo "Use p4rt-ctl set-pipe to setup the runtime pipeline"
+echo "Use p4rt-ctl set-pipe to set up the runtime pipeline"
 p4rt-ctl set-pipe br0 \$OUTPUT_DIR/fxp-net_linux-networking-v2.pb.bin \$OUTPUT_DIR/p4Info.txt
 sleep 2
 echo ""
 echo "Get IDPF Interface MAC and VSI info from IMC command : cli_client -q -c"
 echo "VSI (hexadecimal:decimal) PORT (VSI+16)"
 echo "Use p4rt-ctl to configure the VFs -- ACC PR"
-'''+vf_to_acc+'''
+''' + vf_to_acc + '''
 sleep 2
 echo ""
 echo "Use p4rt-ctl to configure the Physical Ports -- ACC PR"
-'''+phy_to_acc+'''
+''' + phy_to_acc + '''
 sleep 2
 echo ""
 echo "Configure supporting p4 runtime tables for LPM and LAG bypass"
-'''+misc+'''
+''' + misc + '''
 EOF
 '''
     command_list.append(acc_p4rt)
 
     file = f'{path}/acc_p4rt_delete.sh'
-    acc_p4rt_delete = 'cat <<EOF > ./'+file+'''
+    acc_p4rt_delete = 'cat <<EOF > ./' + file + '''
 #!/bin/sh
 
 echo "Delete the P4 Runtime Rules"
 export SDE_INSTALL=/opt/p4/p4sde
 export P4CP_INSTALL=/opt/p4/p4-cp-nws
 export DEPEND_INSTALL=\$P4CP_INSTALL
-export OUTPUT_DIR='''+acc_p4_path+'''
+export OUTPUT_DIR=''' + acc_p4_path + '''
 export PATH=/root/.local/bin:/root/bin:/usr/share/Modules/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/p4/p4-cp-nws/bin:/opt/p4/p4-cp-nws/sbin
 
 
 echo "Use p4rt-ctl to remove the rules for the VFs -- ACC PR"
-'''+vf_to_acc+'''
+''' + vf_to_acc + '''
 sleep 2
 echo ""
 echo "Use p4rt-ctl to remove the rules for Physical Ports -- ACC PR"
-'''+phy_to_acc+'''
+''' + phy_to_acc + '''
 sleep 2
 echo ""
 echo "Remove supporting p4 runtime tables for LPM and LAG bypass"
-'''+misc+'''
+''' + misc + '''
 EOF
 '''
     command_list.append(acc_p4rt_delete)
@@ -316,15 +338,15 @@ sed -i 's/,action.*"/"/g' {file}
     command_list.append(delete_command)
 
     file = f'{path}/4_acc_p4rt_dump.sh'
-    acc_p4rt_dump = 'cat <<EOF > ./'+file+'''
+    acc_p4rt_dump = 'cat <<EOF > ./' + file + '''
 #!/bin/sh
 
-echo "Setup P4 Runtime Pipeline"
-echo "P4 Artifacts are in Folder : OUTPUT_DIR='''+acc_p4_path+'''"
+echo "Set up P4 Runtime Pipeline"
+echo "P4 Artifacts are in Folder : OUTPUT_DIR=''' + acc_p4_path + '''"
 export SDE_INSTALL=/opt/p4/p4sde
 export P4CP_INSTALL=/opt/p4/p4-cp-nws
 export DEPEND_INSTALL=\$P4CP_INSTALL
-export OUTPUT_DIR='''+acc_p4_path+'''
+export OUTPUT_DIR=''' + acc_p4_path + '''
 export PATH=/root/.local/bin:/root/bin:/usr/share/Modules/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/p4/p4-cp-nws/bin:/opt/p4/p4-cp-nws/sbin
 
 
@@ -372,18 +394,18 @@ EOF
 
     command_list.append(acc_p4rt_dump)
     file = f'{path}/5_acc_setup_ovs.sh'
-    acc_setup_ovs = 'cat <<EOF > ./'+file+'''
+    acc_setup_ovs = 'cat <<EOF > ./' + file + '''
 #!/bin/sh
 
 killall ovsdb-server
 killall ovs-vswitchd
 
 echo ""
-echo "Setup the Environment to run OVS"
+echo "Set up the Environment to run OVS"
 export SDE_INSTALL=/opt/p4/p4sde
 export P4CP_INSTALL=/opt/p4/p4-cp-nws
 export DEPEND_INSTALL=\$P4CP_INSTALL
-export OUTPUT_DIR='''+acc_p4_path+'''
+export OUTPUT_DIR=''' + acc_p4_path + '''
 export PATH=/root/.local/bin:/root/bin:/usr/share/Modules/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/p4/p4-cp-nws/bin:/opt/p4/p4-cp-nws/sbin
 export RUN_OVS=/opt/p4/p4-cp-nws
 
@@ -416,19 +438,19 @@ EOF
 '''
     command_list.append(acc_setup_ovs)
     file = f'{path}/6_acc_ovs_bridge.sh'
-    acc_ovs_bridge = 'cat <<EOF > ./'+file+'''
+    acc_ovs_bridge = 'cat <<EOF > ./' + file + '''
 #!/bin/sh
 
-echo "Setup the Environment to run OVS"
+echo "Set up the Environment to run OVS"
 export SDE_INSTALL=/opt/p4/p4sde
 export P4CP_INSTALL=/opt/p4/p4-cp-nws
 export DEPEND_INSTALL=\$P4CP_INSTALL
-export OUTPUT_DIR='''+acc_p4_path+'''
+export OUTPUT_DIR=''' + acc_p4_path + '''
 export PATH=/root/.local/bin:/root/bin:/usr/share/Modules/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/p4/p4-cp-nws/bin:/opt/p4/p4-cp-nws/sbin
 export RUN_OVS=/opt/p4/p4-cp-nws
 
 echo ""
-echo "Setup an OVS Bridge br-int-1"
+echo "Set up an OVS Bridge br-int-1"
 
 ovs-vsctl del-br br-int-1
 ovs-vsctl del-br br-int-2
@@ -485,31 +507,31 @@ EOF
 
 
     file = f'{path}/acc_ovs_vxlan.sh'
-    acc_ovs_vxlan = 'cat <<EOF > ./'+file+'''
+    acc_ovs_vxlan = 'cat <<EOF > ./' + file + '''
 #!/bin/sh
 
-echo "Setup the Environment to run OVS"
+echo "Set up the Environment to run OVS"
 export SDE_INSTALL=/opt/p4/p4sde
 export P4CP_INSTALL=/opt/p4/p4-cp-nws
 export DEPEND_INSTALL=\$P4CP_INSTALL
-export OUTPUT_DIR='''+acc_p4_path+'''
+export OUTPUT_DIR=''' + acc_p4_path + '''
 export PATH=/root/.local/bin:/root/bin:/usr/share/Modules/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/p4/p4-cp-nws/bin:/opt/p4/p4-cp-nws/sbin
 export RUN_OVS=/opt/p4/p4-cp-nws
 
 ovs-vsctl del-br br-int-1
 ovs-vsctl del-br br-int-2
 
-'''+ovs_vxlan+'''
-ifconfig br-tun-0 '''+local_br_tun[0]+'''/24 up
-ifconfig br-tun-1 '''+local_br_tun[1]+'''/24 up
-ip route change 10.1.1.0/24 via '''+remote_br_tun[0]+''' dev br-tun-0
-ip route change 11.1.1.0/24 via '''+remote_br_tun[0]+''' dev br-tun-0
-ip route change 12.1.1.0/24 via '''+remote_br_tun[0]+''' dev br-tun-0
-ip route change 13.1.1.0/24 via '''+remote_br_tun[0]+''' dev br-tun-0
-ip route change 14.1.1.0/24 via '''+remote_br_tun[1]+''' dev br-tun-1
-ip route change 15.1.1.0/24 via '''+remote_br_tun[1]+''' dev br-tun-1
-ip route change 16.1.1.0/24 via '''+remote_br_tun[1]+''' dev br-tun-1
-ip route change 17.1.1.0/24 via '''+remote_br_tun[1]+''' dev br-tun-1
+''' + ovs_vxlan + '''
+ifconfig br-tun-0 ''' + local_br_tun[0] + '''/24 up
+ifconfig br-tun-1 ''' + local_br_tun[1] + '''/24 up
+ip route change 10.1.1.0/24 via ''' + remote_br_tun[0] + ''' dev br-tun-0
+ip route change 11.1.1.0/24 via ''' + remote_br_tun[0] + ''' dev br-tun-0
+ip route change 12.1.1.0/24 via ''' + remote_br_tun[0] + ''' dev br-tun-0
+ip route change 13.1.1.0/24 via ''' + remote_br_tun[0] + ''' dev br-tun-0
+ip route change 14.1.1.0/24 via ''' + remote_br_tun[1] + ''' dev br-tun-1
+ip route change 15.1.1.0/24 via ''' + remote_br_tun[1] + ''' dev br-tun-1
+ip route change 16.1.1.0/24 via ''' + remote_br_tun[1] + ''' dev br-tun-1
+ip route change 17.1.1.0/24 via ''' + remote_br_tun[1] + ''' dev br-tun-1
 
 sleep 2
 ovs-vsctl show
@@ -523,11 +545,11 @@ EOF
     command_list.append(acc_ovs_vxlan)
 
     file = f'{path}/7_host_vm.sh'
-    host_vm = 'cat <<EOF > ./'+file+'''
+    host_vm = 'cat <<EOF > ./' + file + '''
 #!/bin/sh
-echo "Setup the Host VMs and VFs"
+echo "Set up the Host VMs and VFs"
 
-'''+vf_to_vm+'''
+''' + vf_to_vm + '''
 
 EOF
 '''
@@ -545,140 +567,130 @@ EOF
 
 def build_args():
     # Create the top-level parser
-    parser = argparse.ArgumentParser(description='Run Linux networking V2 with OVS Offload')
+    parser = argparse.ArgumentParser(description='Run Linux networking V2 with OVS Offload.')
+    # Create the subcommand parsers
     subparsers = parser.add_subparsers(dest='command', help='options')
-    # Create the parser for the "create_script" command
-    parser_create_script = subparsers.add_parser('create_script', help='Generate configuration scripts in localhost')
-    # Create the parser for the "copy_script" command
-    parser_copy_script = subparsers.add_parser('copy_script', help='Copy configuration scripts to IMC and ACC')
-    # Create the parser for the "setup" command
-    parser_setup = subparsers.add_parser('setup', help='Setup the complete OVS offload Recipe, prerequisite: run copy_script option once for scripts to be available in ACC')
-    # Create the parser for the "teardown" command
-    parser_teardown = subparsers.add_parser('teardown', help='Teardown the complete OVS offload Recipe, prerequisite: run copy_script option once for scripts to be available in ACC')
+    parser_create_script = subparsers.add_parser('create_script', help='Generate configuration scripts in localhost.')
+    parser_copy_script = subparsers.add_parser('copy_script', help='Copy configuration scripts to IMC and ACC.')
+    parser_setup = subparsers.add_parser('setup', help='Set up the complete OVS offload Recipe. Prerequisite: run copy_script option once for scripts to be available in ACC.')
+    parser_teardown = subparsers.add_parser('teardown', help='Tear down the complete OVS offload Recipe. Prerequisite: run copy_script option once for scripts to be available in ACC.')
     return parser
 
+def validate_host_password():
+    if len(host_password) == 0:
+        print("Enter correct IPU Host SSH root password in config.yaml and retry")
+        sys.exit()
+    return
 
-if __name__ == "__main__":
-    host_path = test_config['test_params']['host_path']
-    imc_path = test_config['test_params']['imc_path']
-    acc_path = test_config['test_params']['acc_path']
-    idpf_interface = test_config['test_params']['idpf_interface']
-    vf_interfaces = test_config['test_params']['vf_interfaces']
-    acc_pr_interfaces = test_config['test_params']['acc_pr_interfaces']
-    ip_list=test_config['test_params']['ip_list']
-    imc_ip = test_config['imc']['ssh']['ip']
-    acc_ip = test_config['acc']['ssh']['ip']
-    acc_p4_path = f'{acc_path}/fxp-net_linux-networking'
-    lp_interfaces = test_config['host']['lp_interfaces']
-    lp_interface_ip = test_config['host']['lp_interface_ip']
-    host_password = test_config['host']['ssh']['password']
-    imc_login = f'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{imc_ip}'
-    acc_login = f'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{acc_ip}'
+def print_banner(banner):
+    print(f"\n----------------{banner}----------------")
+    return
 
-    parser = build_args()
-    # Parse the arguments
-    args = parser.parse_args()
+def create_script_subcommand():
+    print_banner("Create OVS OFFLOAD scripts")
+    build_p4rt_config(vf_list=vf_interfaces, acc_pr_list=acc_pr_interfaces,
+                      vm_ip_list=ip_list, host_idpf_intf=idpf_interface,
+                      path=host_path)
+    return
 
-    # Execute the appropriate function based on the subcommand
-    if args.command == 'create_script':
+def copy_script_subcommand():
+    create_script_subcommand()
 
-        print("\n----------------Create OVS OFFLOAD scripts----------------")
-        build_p4rt_config(vf_list=vf_interfaces, acc_pr_list=acc_pr_interfaces, vm_ip_list=ip_list,host_idpf_intf=idpf_interface, path=host_path)
+    print_banner("Copy OVS OFFLOAD scripts to the ACC")
+    copy_scripts(host_path = host_path, imc_path = imc_path,
+                 acc_path = acc_path)
+    return
 
-    elif args.command == 'copy_script':
-        print("\n----------------Create OVS OFFLOAD scripts----------------")
-        build_p4rt_config(vf_list=vf_interfaces, acc_pr_list=acc_pr_interfaces, vm_ip_list=ip_list,host_idpf_intf=idpf_interface, path=host_path)
-        print("\n----------------Copy OVS OFFLOAD scripts to the ACC----------------")
-        copy_scripts(host_path = host_path, imc_path = imc_path , acc_path = acc_path)
+def setup_subcommand():
+    validate_host_password()
 
-    elif args.command == 'setup':
+    print_banner("Set up Linux Networking with OVS OFFLOAD")
 
-        if len(host_password) == 0:
-            print("Enter correct IPU Host SSH root password in config.yaml and retry")
-            sys.exit()
+    # Set up a TMUX session, log in to ACC, and start infrap4d
+    print_banner("Set up TMUX Session, Log in to ACC")
+    infrap4d = tmux_term(tmux_name="test1_infrap4d", tmux_override=True)
+    result = infrap4d.tmux_send_keys(imc_login, delay=2, output=True)
+    result = infrap4d.tmux_send_keys(acc_login, delay=2, output=True)
 
-        print("\n----------------Setup Linux Networking with OVS OFFLOAD----------------")
+    print_banner("Copy Infrap4d Configuration file")
+    result = infrap4d.tmux_send_keys(
+        f'yes | cp -f {acc_path}/{host_path}/es2k_skip_p4.conf {acc_path}/fxp-net_linux-networking/',
+        delay=2, output=True)
+    print(result)
+    result = infrap4d.tmux_send_keys(f'cd {acc_path}/{host_path}', delay=2,
+                                     output=True)
+    result = infrap4d.tmux_send_keys('ls -lrt', delay=2, output=True)
 
-        # Setup a TMUX session, Login to ACC and start infrap4d
-        print("\n----------------Setup TMUX Session, Login to ACC----------------")
-        infrap4d = tmux_term(tmux_name="test1_infrap4d",tmux_override=True)
-        result = infrap4d.tmux_send_keys(imc_login, delay=2, output=True)
-        result = infrap4d.tmux_send_keys(acc_login, delay=2, output=True)
+    print_banner("Start Infrap4d, wait for initialization to complete")
+    result = infrap4d.tmux_send_keys('./2_acc_infrap4d.sh', delay=180, output=True)
+    print(result)
 
-        print("\n----------------Copy Infrap4d Configuration file----------------")
-        result = infrap4d.tmux_send_keys(f'yes | cp -f {acc_path}/{host_path}/es2k_skip_p4.conf {acc_path}/fxp-net_linux-networking/', delay=2, output=True)
-        print(result)
-        result = infrap4d.tmux_send_keys(f'cd {acc_path}/{host_path}', delay=2, output=True)
-        result = infrap4d.tmux_send_keys('ls -lrt', delay=2, output=True)
+    # Set up a TMUX session, Log in to ACC, configure p4rt rules and ovs bridges
+    print_banner("Set up TMUX Session, Log in to ACC")
+    p4rt = tmux_term(tmux_name="test2_p4rt", tmux_override=True)
+    result = p4rt.tmux_send_keys(imc_login, delay=2)
+    result = p4rt.tmux_send_keys(acc_login, delay=2)
+    result = p4rt.tmux_send_keys(f'cd {acc_path}/{host_path}', delay=2, output=True)
 
-        print("\n----------------Start Infrap4d, wait for initialization to complete----------------")
-        result = infrap4d.tmux_send_keys('./2_acc_infrap4d.sh', delay=180, output=True)
-        print(result)
+    print_banner("Use p4rt-ctl to Add the rules")
+    result = p4rt.tmux_send_keys('./3_acc_p4rt.sh', delay=60, output=True)
+    print(result)
+    print_banner("Use p4rt-ctl to Dump the rules")
+    result = p4rt.tmux_send_keys('./4_acc_p4rt_dump.sh', delay=20, output=True)
+    print(result)
 
-        # Setup a TMUX session, Login to ACC, configure p4rt rules and ovs bridges
-        print("\n----------------Setup TMUX Session, Login to ACC----------------")
-        p4rt = tmux_term(tmux_name="test2_p4rt",tmux_override=True)
-        result = p4rt.tmux_send_keys(imc_login, delay=2)
-        result = p4rt.tmux_send_keys(acc_login, delay=2)
-        result = p4rt.tmux_send_keys(f'cd {acc_path}/{host_path}', delay=2, output=True)
+    print_banner("Set up OVS Environment on the ACC")
+    result = p4rt.tmux_send_keys('./5_acc_setup_ovs.sh', delay=10, output=True)
+    print(result)
+    print_banner("Configure OVS Bridges")
+    result = p4rt.tmux_send_keys('./6_acc_ovs_bridge.sh', delay=10, output=True)
+    print(result)
 
-        print("\n----------------Use p4rt-ctl to Add the rules----------------")
-        result = p4rt.tmux_send_keys('./3_acc_p4rt.sh', delay=60, output=True)
-        print(result)
-        print("\n----------------Use p4rt-ctl to Dump the rules----------------")
-        result = p4rt.tmux_send_keys('./4_acc_p4rt_dump.sh', delay=20, output=True)
-        print(result)
+    # Set up a TMUX session for the IPU host.
+    # Configure the VMs, idpf interfaces, and link partner interfaces.
+    # Run ping checks.
+    print_banner("Set up TMUX Session and Log in to the Host")
+    host = tmux_term(tmux_name="test3_host", tmux_override=True)
+    result = host.tmux_send_keys(f'cd {host_path}', delay=2, output=True)
+    result = host.tmux_send_keys('sudo -s', delay=2, output=True)
+    result = host.tmux_send_keys(f'{host_password}', delay=2, output=True)
 
-        print("\n----------------Setup OVS Environment on the ACC----------------")
-        result = p4rt.tmux_send_keys('./5_acc_setup_ovs.sh', delay=10, output=True)
-        print(result)
-        print("\n----------------Configure OVS Bridges----------------")
-        result = p4rt.tmux_send_keys('./6_acc_ovs_bridge.sh', delay=10, output=True)
-        print(result)
+    print_banner("Configure the VMs on the Host and Add the IDPF SR-IOV VFs")
+    result = host.tmux_send_keys('ls -lrt', delay=2, output=True)
+    print(f'{result}')
+    result = host.tmux_send_keys('./7_host_vm.sh', delay=30, output=True)
+    print(result)
 
-        # Setup a TMUX session for the IPU host, configure the VMs, idpf interfaces, Link partner interfaces and run ping checks
-        print("\n----------------Setup TMUX Session and Login to the Host----------------")
-        host = tmux_term(tmux_name="test3_host",tmux_override=True)
-        result = host.tmux_send_keys(f'cd {host_path}', delay=2, output=True)
-        result = host.tmux_send_keys('sudo -s', delay=2, output=True)
-        result = host.tmux_send_keys(f'{host_password}', delay=2, output=True)
+    print_banner("Configure the Link Partner Interfaces")
+    for idx in range(len(lp_interfaces)):
+        result = host.tmux_send_keys(
+            f'ip a a dev {lp_interfaces[idx]} {lp_interface_ip[idx]}/24',
+            delay=3, output=True)
+    result = host.tmux_send_keys('ip -br a', delay=3, output=True)
+    print(result)
 
-        print("\n----------------Configure the VMs on the Host and ADD the IDPF SR-IOV VFs----------------")
-        result = host.tmux_send_keys('ls -lrt', delay=2, output=True)
-        print(f'{result}')
-        result = host.tmux_send_keys('./7_host_vm.sh', delay=30, output=True)
-        print(result)
+    print_banner("PING TEST: LINK Partner to Host VM IDPF VF")
+    print(f"\nLINK Partner Interface IP : {lp_interface_ip}")
+    print(f"\nHost VM IDPF VF Interface IP : {ip_list}\n")
+    for ip in ip_list:
+        ping_test(dst_ip=ip, count=4)
+    return
 
-        print("\n----------------Configure the Link Partner Interfaces----------------")
-        for idx in range(len(lp_interfaces)):
-            result = host.tmux_send_keys(f'ip a a dev {lp_interfaces[idx]} {lp_interface_ip[idx]}/24', delay=3, output=True)
-        result = host.tmux_send_keys('ip -br a', delay=3, output=True)
-        print(result)
+def teardown_subcommand():
+    validate_host_password()
 
-        print("\n----------------PING TEST: LINK Partner to Host VM IDPF VF----------------")
-        print(f"\nLINK Partner Interface IP : {lp_interface_ip}")
-        print(f"\nHost VM IDPF VF Interface IP : {ip_list}\n")
-        for ip in ip_list:
-            ping_test(dst_ip=ip, count=4)
+    print_banner("Tear down Linux Networking with OVS OFFLOAD")
 
-    elif args.command == 'teardown':
+    print_banner("Set up TMUX Session and Log in to the Host")
+    host = tmux_term(tmux_name="test3_host", tmux_override=True)
+    result = host.tmux_send_keys(f'cd {host_path}', delay=2, output=True)
+    result = host.tmux_send_keys('sudo -s', delay=2, output=True)
+    result = host.tmux_send_keys(f'{host_password}', delay=2, output=True)
 
-        if len(host_password) == 0:
-            print("Enter correct IPU Host root password in config.yaml and retry")
-            sys.exit()
-
-        print("\n----------------Teardown Linux Networking with OVS OFFLOAD----------------")
-
-        print("\n----------------Setup TMUX Session and Login to the Host----------------")
-        host = tmux_term(tmux_name="test3_host",tmux_override=True)
-        result = host.tmux_send_keys(f'cd {host_path}', delay=2, output=True)
-        result = host.tmux_send_keys('sudo -s', delay=2, output=True)
-        result = host.tmux_send_keys(f'{host_password}', delay=2, output=True)
-
-        print("\n----------------Delete the VMs on the Host----------------")
-        result = host.tmux_send_keys('ls -lrt', delay=2, output=True)
-        print(f'{result}')
-        command = '''ip netns del VM0
+    print_banner("Delete the VMs on the Host")
+    result = host.tmux_send_keys('ls -lrt', delay=2, output=True)
+    print(f'{result}')
+    command = '''ip netns del VM0
 ip netns del VM1
 ip netns del VM2
 ip netns del VM3
@@ -687,21 +699,23 @@ ip netns del VM5
 ip netns del VM6
 ip netns del VM7
 '''
-        result = host.tmux_send_keys(command, delay=10, output=True)
-        print(result)
-        for idx in range(len(lp_interfaces)):
-            result = host.tmux_send_keys(f'ip a d dev {lp_interfaces[idx]} {lp_interface_ip[idx]}/24', delay=3, output=True)
-        result = host.tmux_send_keys('ip -br a', delay=3, output=True)
-        print(result)
+    result = host.tmux_send_keys(command, delay=10, output=True)
+    print(result)
+    for idx in range(len(lp_interfaces)):
+        result = host.tmux_send_keys(
+            f'ip a d dev {lp_interfaces[idx]} {lp_interface_ip[idx]}/24',
+            delay=3, output=True)
+    result = host.tmux_send_keys('ip -br a', delay=3, output=True)
+    print(result)
 
-        print("\n----------------Setup TMUX Session, Login to ACC----------------")
-        p4rt = tmux_term(tmux_name="test2_p4rt",tmux_override=True)
-        result = p4rt.tmux_send_keys(imc_login, delay=2)
-        result = p4rt.tmux_send_keys(acc_login, delay=2)
-        result = p4rt.tmux_send_keys(f'cd {acc_path}/{host_path}', delay=2, output=True)
+    print_banner("Set up TMUX Session, Log in to ACC")
+    p4rt = tmux_term(tmux_name="test2_p4rt", tmux_override=True)
+    result = p4rt.tmux_send_keys(imc_login, delay=2)
+    result = p4rt.tmux_send_keys(acc_login, delay=2)
+    result = p4rt.tmux_send_keys(f'cd {acc_path}/{host_path}', delay=2, output=True)
 
-        print("\n----------------Cleanup OVS Bridge Configuration----------------")
-        command = f'''export SDE_INSTALL=/opt/p4/p4sde
+    print_banner("Cleanup OVS Bridge Configuration")
+    command = f'''export SDE_INSTALL=/opt/p4/p4sde
 export P4CP_INSTALL=/opt/p4/p4-cp-nws
 export DEPEND_INSTALL=$P4CP_INSTALL
 export PATH=/root/.local/bin:/root/bin:/usr/share/Modules/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/opt/p4/p4-cp-nws/bin:/opt/p4/p4-cp-nws/sbin
@@ -731,23 +745,38 @@ ip link del TEP7
 ovs-vsctl del-br br7
 ovs-vsctl show
 '''
-        result = p4rt.tmux_send_keys(command, delay=20, output=True)
-        print(result)
+    result = p4rt.tmux_send_keys(command, delay=20, output=True)
+    print(result)
 
-        print("\n----------------Use p4rt-ctl to Delete the rules----------------")
-        result = p4rt.tmux_send_keys('./acc_p4rt_delete.sh', delay=60, output=True)
-        print(result)
-        print("\n----------------Use p4rt-ctl to Dump the rules after cleanup----------------")
-        result = p4rt.tmux_send_keys('./4_acc_p4rt_dump.sh', delay=30, output=True)
-        print(result)
+    print_banner("Use p4rt-ctl to Delete the rules")
+    result = p4rt.tmux_send_keys('./acc_p4rt_delete.sh', delay=60, output=True)
+    print(result)
+    print_banner("Use p4rt-ctl to Dump the rules after cleanup")
+    result = p4rt.tmux_send_keys('./4_acc_p4rt_dump.sh', delay=30, output=True)
+    print(result)
 
-        print("\n----------------Stop Infrap4d on the ACC----------------")
-        infrap4d = tmux_term(tmux_name="test1_infrap4d",tmux_override=True)
-        result = infrap4d.tmux_send_keys(imc_login, delay=2, output=True)
-        result = infrap4d.tmux_send_keys(acc_login, delay=2, output=True)
-        result = infrap4d.tmux_send_keys('ps -aux | grep infrap4d', delay=2, output=True)
-        print(result)
+    print_banner("Stop Infrap4d on the ACC")
+    infrap4d = tmux_term(tmux_name="test1_infrap4d", tmux_override=True)
+    result = infrap4d.tmux_send_keys(imc_login, delay=2, output=True)
+    result = infrap4d.tmux_send_keys(acc_login, delay=2, output=True)
+    result = infrap4d.tmux_send_keys('ps -aux | grep infrap4d', delay=2, output=True)
+    print(result)
+    return
 
+if __name__ == "__main__":
+    # Parse the arguments
+    parser = build_args()
+    args = parser.parse_args()
+
+    # Execute the appropriate function based on the subcommand
+    if args.command == 'create_script':
+        create_script_subcommand()
+    elif args.command == 'copy_script':
+        copy_script_subcommand()
+    elif args.command == 'setup':
+        setup_subcommand()
+    elif args.command == 'teardown':
+        teardown_subcommand()
     else:
         parser.print_help()
 
