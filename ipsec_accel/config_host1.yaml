@@ -24,28 +24,29 @@ test_params:
     imc_path: '/mnt/imc/p4_test'
     acc_path:  '/opt/'
     p4_artifacts: '/ipu/MEV-TS/10393/intel-ipu-host-components/P4Tools/P4Programs/artifacts/fxp-net_linux-networking'
+    ipu_sdk_path: '/ipu/MEV-TS/11102/Intel_IPU_SDK-11102' 
     pf_mac: '00:00:00:00:10:14'
     vf_mac: '00:00:00:00:11:14'
     cxp_num_pages: '5'
     comm_vports: '(([5,0],[4,0]),([0,3],[5,3]),([0,2],[4,3]))'
     # Update the correct IDPF Interface on the Host
-    idpf_interface: 'ens5f0'
+    idpf_interface: 'ens2f0'
     # IPs for communication channel between host and ACC
     comm_ip_host: '10.10.0.1'
     comm_ip_acc: '10.10.0.2'
     # Update the list of Host IDPF Interfaces on the Host to Map to ACC Port representors
     # Interfaces ['0','1'] below represents the IPU Physical Port 0 and Port 1 and the remaining as the Host IDPF Vfs
-    vf_interfaces: ['0','ens5f0v0','ens5f0v1']
+    vf_interfaces: ['0','ens2f0v0','ens2f0v1']
     # These are the ACC Port representors that will be used to map to the interfaces in the above list vf_interfaces. The last PR will be for IPsec application.
     acc_pr_interfaces:  ['enp0s1f0d4','enp0s1f0d5','enp0s1f0d6']
     # The ip_list contains the IP addresses that will be used for the Host IDPF VF interfaces that are mapped to the VM config (using: ip netns). The last IP is for IPsec application
     ip_list: ['192.168.1.101','11.0.0.1']
-    # Host VF MAC and remote LP MAC
-    local_vxlan_tunnel_mac: ['00:1a:00:00:03:14']
+    # Host VF MAC. For example, Here it will be the MAC of ens2f0v0.
+    local_vxlan_tunnel_mac: ['00:1a:00:00:10:14']
     # Remote vxlan IP
     remote_vxlan_ip: ['192.168.1.102']
     # MAC of remote VF v0 interface
-    remote_vxlan_mac: ['00:1a:00:00:22:01'] 
+    remote_vxlan_mac: ['00:1a:00:00:20:14'] 
     # User Input for OVS VXLAN Config.
     # Local and remote vtep(virtual tunnel end-point) IPs are used in OVS vxlan config with ACC PRs mapped to host IDPF VF
     local_vtep: ['10.1.1.1']

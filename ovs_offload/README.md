@@ -57,7 +57,6 @@ cd intel-ipu-host-components/P4Tools/P4Programs/artifacts/fxp-net_linux-networki
 
 > ls
 total 6.2M
--rw-r--r--. 1 admin12 admin12 1.5M Aug 30 10:47 fxp-net_linux-networking_3de1c1f569bb44d69043c2fb3093d079.pkgo
 -rw-r--r--. 1 admin12 admin12  46K Sep  3 11:29 p4Info.txt
 -rw-r--r--. 1 admin12 admin12 1.4K Sep  3 11:29 entries.json
 -rw-r--r--. 1 admin12 admin12 128K Sep  3 11:29 tdi.json

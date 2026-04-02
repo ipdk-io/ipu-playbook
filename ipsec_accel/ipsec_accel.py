@@ -29,6 +29,7 @@ def build_p4rt_config(test_setup = None):
     local_vxlan_tunnel_mac =  test_setup.test_config['test_params']['local_vxlan_tunnel_mac']
     remote_vxlan_ip = test_setup.test_config['test_params']['remote_vxlan_ip']
     remote_vxlan_mac = test_setup.test_config['test_params']['remote_vxlan_mac']
+    ipu_sdk_path = test_setup.test_config['test_params']['ipu_sdk_path']
 
     print("---------- Generating Configs to run infrap4d, p4rt, OVS and IPsec ----------")
 
@@ -172,6 +173,7 @@ ifconfig br-int-{vm_id} up
 
             vf_to_vm += f'''
 echo ""
+nmcli device set {vf_list[i]}  managed no
 ip addr add {vm_ip_list[vm_id]}/24 dev {vf_list[i]}
 ifconfig {vf_list[i]} up
 sleep 2
@@ -830,6 +832,47 @@ echo "Configure the Host VF Interfaces"
 EOF
 '''
     command_list.append(host_vm)
+
+
+    set_intf_mtu = ''
+    vf_list_len = len(vf_list)
+    for i in range(vf_list_len):
+        if str(vf_list[i]) != '0' and str(vf_list[i]) != '1':
+            set_intf_mtu += f"""echo ""
+ifconfig {vf_list[i]} mtu 4096
+sleep 2
+"""
+
+    tune_intf = ''
+    vf_list_len = len(vf_list)
+    for i in range(vf_list_len):
+        if str(vf_list[i]) != '0' and str(vf_list[i]) != '1':
+            tune_intf += f"""echo ""
+{ipu_sdk_path}/common/drivers/idpf/src/COMMON/scripts/set_irq_affinity local {vf_list[i]}
+sleep 5
+"""
+
+    file = f'{path}/perf_tune.sh'
+    perf_tune = 'cat <<EOF > ./'+file+'''
+#!/bin/sh
+
+#Change the MTU to 4096
+
+'''+set_intf_mtu+'''
+
+#Disable irq
+echo "stopping irqbalance"
+systemctl stop irqbalance.service
+sleep 1
+systemctl status irqbalance.service
+
+'''+tune_intf+'''
+
+EOF
+'''
+    command_list.append(perf_tune)
+
+
     command_list.append(f"chmod +x {path}/*")
 
     for command in command_list:
@@ -843,7 +886,7 @@ EOF
 
 def build_args():
     # Create the top-level parser
-    parser = argparse.ArgumentParser(description='Run Linux networking with IPsec Offload')
+    parser = argparse.ArgumentParser(description='Run Linux networking with IPsec Acceleration')
     subparsers = parser.add_subparsers(dest='command', help='options')
     # Create the parser for the "load_package" command and add subparser for linux_networking and default mode
     parser_load_package = subparsers.add_parser('load_package', help='Update the P4 package on the IMC and reboot IMC')
@@ -853,13 +896,15 @@ def build_args():
     # Create the subparser for the "load_package" command for default package
     load_package_subparsers.add_parser('default', help='Revert to the default P4 package e2100-default-<version>.pkg and perform IMC reboot')
     # Create the parser for the "setup" command
-    parser_setup = subparsers.add_parser('setup', help='Setup the complete OVS offload Recipe, prerequisite: run copy_script option once for scripts to be available in ACC')
+    parser_setup = subparsers.add_parser('setup', help='Setup the complete OVS offload Recipe')
     # Create the parser for the "ipsec_transport" command
-    parser_setup = subparsers.add_parser('ipsec_transport', help='Setup the IPsec configs for transport mode, prerequisite: run copy_script option once for scripts to be available in Host')
+    parser_setup = subparsers.add_parser('ipsec_transport', help='Setup the IPsec configs for transport mode')
     # Create the parser for the "ipsec_tunnel" command
-    parser_setup = subparsers.add_parser('ipsec_tunnel', help='Setup the IPsec configs for tunnel mode, prerequisite: run copy_script option once for scripts to be available in Host & ACC')
+    parser_setup = subparsers.add_parser('ipsec_tunnel', help='Setup the IPsec configs for tunnel mode')
+    # Create the parser for the "ipsec_performance" command
+    parser_setup = subparsers.add_parser('ipsec_performance', help='Tune for performance')
     # Create the parser for the "teardown" command
-    parser_teardown = subparsers.add_parser('teardown', help='Teardown the IPsec offload Recipe, prerequisite: run copy_script option once for scripts to be available in ACC')
+    parser_teardown = subparsers.add_parser('teardown', help='Teardown the IPsec offload Recipe')
     # Create the parser for the "create_script" command
     parser_create_script = subparsers.add_parser('create_script', help='Generate configuration scripts in localhost')
     # Create the parser for the "copy_script" command
@@ -886,7 +931,6 @@ if __name__ == "__main__":
     # Parse the arguments
     args = parser.parse_args()
 
-    host_ipsec = tmux_term(test_setup=test_setup, tmux_name="test_host_ipsec",tmux_override=True)
     # Execute the appropriate function based on the subcommand
     if args.command == 'load_package':
          if args.mode is None:
@@ -1018,6 +1062,7 @@ if __name__ == "__main__":
 
 
     elif args.command == 'ipsec_transport':
+        host_ipsec = tmux_term(test_setup=test_setup, tmux_name="test_host_ipsec",tmux_override=True)
         print("\n----------------Configure IPsec environment on the host----------------")
         result = host_ipsec.tmux_send_keys(f'cd {host_path}', delay=2, output=True)
         result = host_ipsec.tmux_send_keys('./host_ipsec_config.sh', delay=15, output=True)
@@ -1035,6 +1080,7 @@ if __name__ == "__main__":
         result = host_ipsec.tmux_send_keys(f'cd {strongSwan_build}//ipsec_offload_plugin/output_strongswan/usr/sbin', delay=2, output=True)
 
     elif args.command == 'ipsec_tunnel':
+        host_ipsec = tmux_term(test_setup=test_setup, tmux_name="test_host_ipsec",tmux_override=True)
         print("\n----------------Configuration for tunnel mode----------------")
         p4rt = tmux_term(test_setup=test_setup, tmux_name="test_p4rt",tmux_override=True)
         result = p4rt.tmux_send_keys(imc_login, delay=2)
@@ -1062,6 +1108,24 @@ if __name__ == "__main__":
         result = host_ipsec.tmux_send_keys('source env_setup_acc.sh', delay=15, output=True)
 
         result = host_ipsec.tmux_send_keys(f'cd {strongSwan_build}//ipsec_offload_plugin/output_strongswan/usr/sbin', delay=2, output=True)
+
+
+    elif args.command == 'ipsec_performance':
+        # Setup a TMUX session, for host interface tuning to test performance
+        print("\n----------------Setup TMUX Session and Login to the Host----------------")
+        tune_perf = tmux_term(test_setup=test_setup, tmux_name="tune_perf",tmux_override=True)
+        cwd = os.getcwd()
+        print("cwd  {}".format(cwd))
+        result = tune_perf.tmux_send_keys('sudo -s', delay=2, output=True)
+        result = tune_perf.tmux_send_keys(f'{host_password}', delay=2, output=True)
+        result = tune_perf.tmux_send_keys(f'cd {cwd}/{host_path}', delay=2, output=True)
+
+        print("\n----------------Configure host comm channel for Host - ACC Communication----------------")
+        result = tune_perf.tmux_send_keys('ls -lrt', delay=2, output=True)
+        print(f'{result}')
+        result = tune_perf.tmux_send_keys('./perf_tune.sh', delay=10, output=True)
+        print(result)
+
 
     elif args.command == 'teardown':
 
